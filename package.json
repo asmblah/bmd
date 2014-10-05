@@ -1,0 +1,17 @@
+{
+    "name": "bmd",
+    "version": "0.1.0",
+    "description": "BMD - Basic Module Definition",
+    "devDependencies": {
+        "mocha": "1.9.x",
+        "mocha-phantomjs": "3.3.x",
+        "phantomjs": "1.9.x"
+    },
+    "scripts": {
+        "blanket": {
+            "pattern": "*"
+        },
+        "test-coverage": "./node_modules/.bin/mocha --require blanket -R html-cov tests/index > mocha-coverage.html",
+        "test": "./node_modules/.bin/mocha-phantomjs --path ./node_modules/.bin/phantomjs tests/index.html --reporter spec"
+    }
+}

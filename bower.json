@@ -1,0 +1,22 @@
+{
+    "name": "bmd",
+    "version": "0.1.0",
+    "ignore": [
+        "**/.*",
+        "node_modules",
+        "libs",
+        "bower_components",
+        "tests"
+    ],
+    "dependencies": {
+        "lodash": "2.4.x"
+    },
+    "devDependencies": {
+        "blanket": "git://github.com/asmblah/blanket.git#bug/ternaryBranchingFix",
+        "chai": "1.9.x",
+        "mocha": "1.9.x",
+        "modular-amd": "0.1.x",
+        "sinon": "http://sinonjs.org/releases/sinon-1.9.1.js",
+        "sinon-chai": "2.5.x"
+    }
+}

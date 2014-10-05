@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>BMD demo</title>
+    </head>
+    <body>
+        <h1>BMD demo</h1>
+
+        <p id="output"></p>
+
+        <script src="../bmd.js"></script>
+
+        <script>
+            require({
+                paths: {
+                    '_': '../bower_components/lodash/dist/lodash'
+                }
+            }, 'test', function (value) {
+                document.getElementById('output').innerHTML = value;
+            });
+        </script>
+    </body>
+</html>

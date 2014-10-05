@@ -1,0 +1,24 @@
+<!DOCTYPE HTML>
+<html lang="en-GB">
+    <head>
+        <meta charset="UTF-8" />
+
+        <title>BMD</title>
+
+        <link rel="stylesheet" href="../bower_components/mocha/mocha.css" />
+        <script type="text/javascript" src="../bower_components/mocha/mocha.js"></script>
+    </head>
+    <body>
+        <div id="mocha"></div>
+
+        <script type="text/javascript" src="../bmd.js"></script>
+
+        <script>
+            require({
+                paths: {
+                    '_': '../bower_components/lodash/dist/lodash'
+                }
+            }, 'index', function () {});
+        </script>
+    </body>
+</html>
