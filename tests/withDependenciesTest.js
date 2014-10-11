@@ -51,8 +51,8 @@ describe('require() with dependencies', function () {
     _.each({
         'when the dependency is referenced with a directory-relative path, current directory': {
             modules: {
-                'lib.js': 'exports.myResult = 7;',
-                'entry.js': 'exports.theLib = require("./lib");'
+                '/path/lib.js': 'exports.myResult = 7;',
+                '/path/entry.js': 'exports.theLib = require("./lib");'
             },
             entry: 'entry',
             expectedExports: {
@@ -63,8 +63,8 @@ describe('require() with dependencies', function () {
         },
         'when the dependency is referenced with a parent directory-relative path above the entry module': {
             modules: {
-                'lib.js': 'exports.myResult = 7;',
-                'stuff/entry.js': 'exports.theLib = require("../lib");'
+                '/path/lib.js': 'exports.myResult = 7;',
+                '/path/stuff/entry.js': 'exports.theLib = require("../lib");'
             },
             entry: 'stuff/entry',
             expectedExports: {
@@ -75,9 +75,9 @@ describe('require() with dependencies', function () {
         },
         'when the dependency is referenced with a parent directory-relative path below the entry module': {
             modules: {
-                'stuff/things/lib2.js': 'exports.theLib1 = require("../lib1");',
-                'stuff/lib1.js': 'exports.myResult = 6;',
-                'stuff/entry.js': 'exports.theLib2 = require("./things/lib2");'
+                '/path/stuff/things/lib2.js': 'exports.theLib1 = require("../lib1");',
+                '/path/stuff/lib1.js': 'exports.myResult = 6;',
+                '/path/stuff/entry.js': 'exports.theLib2 = require("./things/lib2");'
             },
             entry: 'stuff/entry',
             expectedExports: {
@@ -87,12 +87,24 @@ describe('require() with dependencies', function () {
                     }
                 }
             }
+        },
+        'when the dependency is referenced with a directory-relative path above the base path': {
+            modules: {
+                '/lib.js': 'exports.myResult = 22;',
+                '/path/entry.js': 'exports.theLib = require("../lib");'
+            },
+            entry: 'entry',
+            expectedExports: {
+                theLib: {
+                    myResult: 22
+                }
+            }
         }
     }, function (scenario, description) {
         describe(description, function () {
             beforeEach(function (done) {
                 _.each(scenario.modules, function (code, name) {
-                    responseTexts['http://my.app/path/' + name] = code;
+                    responseTexts['http://my.app' + name] = code;
                 });
 
                 bmdRequire(scenario.entry, function (moduleExports) {
