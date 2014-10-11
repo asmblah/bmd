@@ -128,28 +128,38 @@ var require;
 
                             path = path.replace(/\/\//g, '/');
 
-                            path = path.replace(/(^|\/)(\.?\/)+/g, '$1'); // Resolve same-directory terms
-
                             // Resolve parent-directory terms in path
                             while (previousPath !== path) {
                                 previousPath = path;
                                 path = path.replace(/(\/|^)(?!\.\.)[^\/]*\/\.\.\//, '$1');
                             }
 
-                            path = path.replace(/(^|\/)(\.?\/)+/g, '$1'); // Resolve same-directory terms
+                            path = path.replace(/(?!^\/[^.])(^|\/)(\.?\/)+/g, '$1'); // Resolve same-directory terms
 
                             return path;
                         }
 
-                        function mapPath(path, directoryPath) {
+                        function mapPath(path, directoryURI) {
+                            var matches,
+                                directoryPrefix,
+                                directoryPath;
+
                             if (config.paths && config.paths[path]) {
                                 return config.paths[path];
                             }
 
+                            if (directoryURI) {
+                                matches = directoryURI.match(/^([^:]+:\/\/[^\/]*)(.*)$/);
+                                directoryPrefix = matches[1];
+                                directoryPath = matches[2];
+
+                                path = directoryPath + path;
+                            }
+
                             path = resolvePath(path);
 
-                            if (directoryPath) {
-                                path = directoryPath + path;
+                            if (directoryURI) {
+                                path = directoryPrefix + path;
                             }
 
                             return path;
