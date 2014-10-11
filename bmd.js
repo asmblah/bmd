@@ -58,11 +58,7 @@ var require;
         }()),
         BMD = (function () {
             function BMD(XMLHttpRequest, baseURI) {
-                baseURI = baseURI.replace(/[^\/]*$/, '');
-
-                if (!/\/$/.test(baseURI)) {
-                    baseURI += '/';
-                }
+                baseURI = getDirectory(baseURI);
 
                 this.baseURI = baseURI;
                 this.modules = {};
@@ -95,9 +91,8 @@ var require;
 
                     function request(path, callback) {
                         xhrBusy = true;
-                        path = path.replace(/(^|\/)\.\//g, '');
 
-                        getScript(xhr, bmd.baseURI + path.replace(/\.js$/, '') + '.js', function (code) {
+                        getScript(xhr, path.replace(/\.js$/, '') + '.js', function (code) {
                             var item;
 
                             callback(code, path);
@@ -115,11 +110,46 @@ var require;
                     request(path, callback);
                 }
 
-                function internalRequire(config, path, callback) {
-                    function scopedRequire(path, callback) {
-                        function mapPath(path) {
+                function require(config, path, callback) {
+                    if (typeof config === 'string') {
+                        callback = path;
+                        path = config;
+                        config = {};
+                    }
+
+                    if (!esprima) {
+                        preEsprimaRequires.push({config: config, path: path, callback: callback});
+                        return;
+                    }
+
+                    function contextRequire(path, callback) {
+                        function resolvePath(path) {
+                            var previousPath;
+
+                            path = path.replace(/\/\//g, '/');
+
+                            path = path.replace(/(^|\/)(\.?\/)+/g, '$1'); // Resolve same-directory terms
+
+                            // Resolve parent-directory terms in path
+                            while (previousPath !== path) {
+                                previousPath = path;
+                                path = path.replace(/(\/|^)(?!\.\.)[^\/]*\/\.\.\//, '$1');
+                            }
+
+                            path = path.replace(/(^|\/)(\.?\/)+/g, '$1'); // Resolve same-directory terms
+
+                            return path;
+                        }
+
+                        function mapPath(path, directoryPath) {
                             if (config.paths && config.paths[path]) {
                                 return config.paths[path];
+                            }
+
+                            path = resolvePath(path);
+
+                            if (directoryPath) {
+                                path = directoryPath + path;
                             }
 
                             return path;
@@ -140,8 +170,8 @@ var require;
                             return;
                         }
 
-                        function fetch(path, callback) {
-                            path = mapPath(path);
+                        function fetch(path, directoryPath, callback) {
+                            path = mapPath(path, directoryPath);
 
                             getQueuedScript(path, function (text) {
                                 var dependencies = [],
@@ -150,6 +180,16 @@ var require;
                                     pending = 0;
 
                                 function loaded() {
+                                    function scopedRequire(relativePath) {
+                                        var mappedPath = mapPath(relativePath, getDirectory(path));
+
+                                        if (!hasOwn.call(modules, mappedPath)) {
+                                            throw new Error('Module not loaded: "' + mappedPath + '"');
+                                        }
+
+                                        return modules[mappedPath].load();
+                                    }
+
                                     modules[path] = new Module(path, dependencies, text, scopedRequire);
                                     callback(path);
                                 }
@@ -160,11 +200,11 @@ var require;
                                     dependencies.push(modules[dependencyPath]);
                                 }
 
-                                function loadDependency(dependencyPath) {
+                                function loadDependency(dependencyPath, directoryPath) {
                                     if (hasOwn.call(modules, dependencyPath)) {
                                         dependencyLoaded(dependencyPath);
                                     } else {
-                                        fetch(dependencyPath, function (dependencyPath) {
+                                        fetch(dependencyPath, directoryPath, function (dependencyPath) {
                                             dependencyLoaded(dependencyPath);
 
                                             if (pending === 0) {
@@ -214,32 +254,17 @@ var require;
                                 for (i = 0; i < matches.length; i++) {
                                     pending++;
 
-                                    loadDependency(matches[i]);
+                                    loadDependency(matches[i], getDirectory(path));
                                 }
                             });
                         }
 
-                        fetch(path, function () {
+                        fetch(path, bmd.baseURI, function (path) {
                             callback(modules[path].load());
                         });
                     }
 
-                    scopedRequire(path, callback);
-                }
-
-                function require(config, path, callback) {
-                    if (typeof config === 'string') {
-                        callback = path;
-                        path = config;
-                        config = {};
-                    }
-
-                    if (!esprima) {
-                        preEsprimaRequires.push({config: config, path: path, callback: callback});
-                        return;
-                    }
-
-                    internalRequire(config, path, callback);
+                    contextRequire(path, callback);
                 }
 
                 require.BMD = BMD;
@@ -295,6 +320,16 @@ var require;
                 require(main, function () {});
             }
         }
+    }
+
+    function getDirectory(path) {
+        path = path.replace(/[^\/]*$/, '');
+
+        if (!/\/$/.test(path)) {
+            path += '/';
+        }
+
+        return path;
     }
 
     loadEsprima();

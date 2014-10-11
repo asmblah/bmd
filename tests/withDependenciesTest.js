@@ -60,6 +60,18 @@ describe('require() with dependencies', function () {
                     myResult: 7
                 }
             }
+        },
+        'when the dependency is referenced with a parent directory-relative path above the entry module': {
+            modules: {
+                'stuff/../lib.js': 'exports.myResult = 7;',
+                'stuff/entry.js': 'exports.theLib = require("../lib");'
+            },
+            entry: 'stuff/entry',
+            expectedExports: {
+                theLib: {
+                    myResult: 7
+                }
+            }
         }
     }, function (scenario, description) {
         describe(description, function () {
