@@ -28,5 +28,6 @@ window.it = it;
 window.sinon = sinon;
 
 require('./noDependenciesTest');
+require('./withDependenciesTest');
 
 mochaPhantomJS.run();

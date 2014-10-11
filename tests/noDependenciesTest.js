@@ -12,12 +12,14 @@
 var _ = require('_'),
     BMD = require('../bmd').BMD;
 
-describe('require()', function () {
+describe('require() with no dependencies', function () {
     var bmdRequire,
         lastModuleExports,
-        responseText;
+        responseTexts;
 
     beforeEach(function () {
+        responseTexts = {};
+
         function FakeXMLHttpRequest() {}
 
         FakeXMLHttpRequest.prototype = {
@@ -27,18 +29,23 @@ describe('require()', function () {
                 this.async = async;
             },
             send: function () {
+                if (!{}.hasOwnProperty.call(responseTexts, this.uri)) {
+                    throw new Error('Stub dependency "' + this.uri + '" not defined, only ' + Object.keys(responseTexts));
+                }
+
                 this.readyState = 4;
-                this.responseText = responseText;
+                this.status = 0;
+                this.responseText = responseTexts[this.uri];
                 this.onreadystatechange();
             }
         };
 
-        bmdRequire = new BMD(FakeXMLHttpRequest).createRequirer();
+        bmdRequire = new BMD(FakeXMLHttpRequest, 'http://my.app/path/').createRequirer();
     });
 
     describe('when the module is empty', function () {
         beforeEach(function (done) {
-            responseText = '';
+            responseTexts['http://my.app/path/my-module.js'] = '';
 
             bmdRequire('my-module', function (moduleExports) {
                 lastModuleExports = moduleExports;
@@ -69,7 +76,7 @@ describe('require()', function () {
         }, function (scenario, description) {
             describe(description, function () {
                 beforeEach(function (done) {
-                    responseText = scenario.script;
+                    responseTexts['http://my.app/path/my-module.js'] = scenario.script;
 
                     bmdRequire('my-module', function (moduleExports) {
                         lastModuleExports = moduleExports;
