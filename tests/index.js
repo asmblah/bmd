@@ -17,7 +17,6 @@ var chai = require('../bower_components/chai/chai.js'),
 chai.use(sinonChai);
 
 mocha.ui('bdd');
-mocha.reporter('html');
 mocha.timeout(10000);
 
 // Expose tools in the global scope
