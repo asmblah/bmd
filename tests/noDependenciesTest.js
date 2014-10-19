@@ -10,7 +10,7 @@
 'use strict';
 
 var _ = require('_'),
-    BMD = require('../bmd').BMD;
+    BMD = require('bmd').BMD;
 
 describe('require() with no dependencies', function () {
     var bmdRequire,

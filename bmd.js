@@ -15,6 +15,15 @@ var require;
     var esprima,
         hasOwn = {}.hasOwnProperty,
         preEsprimaRequires = [],
+        scriptDir = (function () {
+            var script = document.scripts[document.scripts.length - 1];
+
+            if (script) {
+                return script.src.replace(/[^\/]+$/, '');
+            }
+
+            return '';
+        }()),
         Module = (function () {
             function Module(path, dependencies, script, require) {
                 this.dependencies = dependencies;
@@ -63,7 +72,11 @@ var require;
                 this.baseURI = baseURI;
                 this.modules = {};
                 this.XMLHttpRequest = XMLHttpRequest;
+
+                this.createDefiner()('bmd', this);
             }
+
+            BMD.prototype.BMD = BMD;
 
             BMD.prototype.createDefiner = function () {
                 var modules = this.modules;
@@ -191,7 +204,13 @@ var require;
 
                                 function loaded() {
                                     function scopedRequire(relativePath) {
-                                        var mappedPath = mapPath(relativePath, getDirectory(path));
+                                        var mappedPath;
+
+                                        if (hasOwn.call(modules, relativePath)) {
+                                            return modules[relativePath].load();
+                                        }
+
+                                        mappedPath = mapPath(relativePath, getDirectory(path));
 
                                         if (!hasOwn.call(modules, mappedPath)) {
                                             throw new Error('Module not loaded: "' + mappedPath + '"');
@@ -277,8 +296,6 @@ var require;
                     contextRequire(path, callback);
                 }
 
-                require.BMD = BMD;
-
                 return require;
             };
 
@@ -298,7 +315,7 @@ var require;
     }
 
     function loadEsprima() {
-        getScript(new XMLHttpRequest(), '../vendor/esprima.js', function (code) {
+        getScript(new XMLHttpRequest(), scriptDir + 'vendor/esprima.js', function (code) {
             var i,
                 requireArgs;
 

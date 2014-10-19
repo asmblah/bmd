@@ -11,7 +11,7 @@
 
 var _ = require('_'),
     esprima = require('../vendor/esprima.js'),
-    BMD = require('../bmd').BMD;
+    BMD = require('bmd').BMD;
 
 describe('require() with dependencies', function () {
     var bmd,
