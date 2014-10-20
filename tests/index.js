@@ -26,6 +26,7 @@ window.expect = chai.expect;
 window.it = it;
 window.sinon = sinon;
 
+require('./nodeCompatTest');
 require('./noDependenciesTest');
 require('./pathMappingsTest');
 require('./withDependenciesTest');

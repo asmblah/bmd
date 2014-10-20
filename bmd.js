@@ -149,6 +149,10 @@ var require;
 
                             path = path.replace(/(?!^\/[^.])(^|\/)(\.?\/)+/g, '$1'); // Resolve same-directory terms
 
+                            if (/\/\.?$/.test(path)) {
+                                path = path.replace(/\.$/, '') + 'index';
+                            }
+
                             return path;
                         }
 
