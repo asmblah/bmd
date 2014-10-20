@@ -155,10 +155,19 @@ var require;
                         function mapPath(path, directoryURI) {
                             var matches,
                                 directoryPrefix,
-                                directoryPath;
+                                directoryPath,
+                                match;
 
-                            if (config.paths && config.paths[path]) {
-                                return mapPath(config.paths[path], bmd.baseURI);
+                            if (config.paths) {
+                                if (config.paths[path]) {
+                                    return mapPath(config.paths[path], bmd.baseURI);
+                                }
+
+                                match = path.match(/^([^\/]+)\/(.*)$/);
+
+                                if (match && config.paths[match[1]]) {
+                                    return mapPath(config.paths[match[1]] + '/' + match[2], bmd.baseURI);
+                                }
                             }
 
                             if (directoryURI) {

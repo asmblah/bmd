@@ -65,6 +65,23 @@ describe('Path mappings', function () {
                     myResult: 7
                 }
             }
+        },
+        'when the mapping is for a directory': {
+            modules: {
+                '/path/my/stuff/js/World.js': 'exports.World = 41;',
+                '/path/entry.js': 'exports.myExports = require("my-lib/js/World");'
+            },
+            entry: 'entry',
+            config: {
+                paths: {
+                    'my-lib': '/my/stuff'
+                }
+            },
+            expectedExports: {
+                myExports: {
+                    World: 41
+                }
+            }
         }
     }, function (scenario, description) {
         describe(description, function () {
