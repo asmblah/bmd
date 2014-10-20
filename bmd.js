@@ -158,7 +158,7 @@ var require;
                                 directoryPath;
 
                             if (config.paths && config.paths[path]) {
-                                return config.paths[path];
+                                return mapPath(config.paths[path], bmd.baseURI);
                             }
 
                             if (directoryURI) {
