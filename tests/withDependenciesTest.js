@@ -54,7 +54,7 @@ describe('require() with dependencies', function () {
                 '/path/lib.js': 'exports.myResult = 7;',
                 '/path/entry.js': 'exports.theLib = require("./lib");'
             },
-            entry: 'entry',
+            entry: './entry',
             expectedExports: {
                 theLib: {
                     myResult: 7
@@ -66,7 +66,7 @@ describe('require() with dependencies', function () {
                 '/path/lib.js': 'exports.myResult = 7;',
                 '/path/stuff/entry.js': 'exports.theLib = require("../lib");'
             },
-            entry: 'stuff/entry',
+            entry: './stuff/entry',
             expectedExports: {
                 theLib: {
                     myResult: 7
@@ -79,7 +79,7 @@ describe('require() with dependencies', function () {
                 '/path/stuff/lib1.js': 'exports.myResult = 6;',
                 '/path/stuff/entry.js': 'exports.theLib2 = require("./things/lib2");'
             },
-            entry: 'stuff/entry',
+            entry: './stuff/entry',
             expectedExports: {
                 theLib2: {
                     theLib1: {
@@ -93,7 +93,7 @@ describe('require() with dependencies', function () {
                 '/lib.js': 'exports.myResult = 22;',
                 '/path/entry.js': 'exports.theLib = require("../lib");'
             },
-            entry: 'entry',
+            entry: './entry',
             expectedExports: {
                 theLib: {
                     myResult: 22

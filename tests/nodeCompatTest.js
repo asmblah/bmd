@@ -62,7 +62,7 @@ describe('Node.js compatibility', function () {
                 '/path/a/folder/index.js': 'exports.myResult = 22;',
                 '/path/entry.js': 'exports.theLib = require("a/folder/");'
             },
-            entry: 'entry',
+            entry: './entry',
             expectedExports: {
                 theLib: {
                     myResult: 22
@@ -74,7 +74,7 @@ describe('Node.js compatibility', function () {
                 '/path/index.js': 'exports.myResult = 21;',
                 '/path/entry.js': 'exports.theLib = require(".");'
             },
-            entry: 'entry',
+            entry: './entry',
             expectedExports: {
                 theLib: {
                     myResult: 21
@@ -90,12 +90,33 @@ describe('Node.js compatibility', function () {
             errorResponses: {
                 '/path/js.js': ''
             },
-            entry: 'entry',
+            entry: './entry',
             expectedExports: {
                 myExports: {
                     myClasses: {
                         World: 42
                     }
+                }
+            }
+        },
+        'when a module refers to a dependency\'s index module by name': {
+            modules: {
+                '/path/package.json': JSON.stringify({
+                    'main': 'entry',
+                    'dependencies': {
+                        'cool-lib': '0.1.x'
+                    }
+                }),
+                '/path/node_modules/cool-lib/package.json': JSON.stringify({
+                    'main': 'cool-index'
+                }),
+                '/path/node_modules/cool-lib/cool-index.js': 'exports.cool = "Yeah!";',
+                '/path/entry.js': 'exports.myExports = require("cool-lib");'
+            },
+            entry: './entry',
+            expectedExports: {
+                myExports: {
+                    cool: 'Yeah!'
                 }
             }
         }

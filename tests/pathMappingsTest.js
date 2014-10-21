@@ -54,7 +54,7 @@ describe('Path mappings', function () {
                 '/path/lib.js': 'exports.myResult = 7;',
                 '/path/entry.js': 'exports.theLib = require("my-special-dep");'
             },
-            entry: 'entry',
+            entry: './entry',
             config: {
                 paths: {
                     'my-special-dep': '/lib.js'
@@ -71,7 +71,7 @@ describe('Path mappings', function () {
                 '/path/my/stuff/js/World.js': 'exports.World = 41;',
                 '/path/entry.js': 'exports.myExports = require("my-lib/js/World");'
             },
-            entry: 'entry',
+            entry: './entry',
             config: {
                 paths: {
                     'my-lib': '/my/stuff'

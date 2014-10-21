@@ -92,38 +92,15 @@ var require;
             BMD.prototype.createRequirer = function () {
                 var bmd = this,
                     modules = bmd.modules,
-                    xhr = new bmd.XMLHttpRequest(),
-                    xhrBusy = false,
-                    xhrQueue = [];
+                    xhr = new QueuedXHR(new bmd.XMLHttpRequest());
 
-                function getQueuedScript(path, callback) {
-                    if (xhrBusy) {
-                        xhrQueue.push({path: path, callback: callback});
-                        return;
-                    }
-
-                    function request(path, callback) {
-                        xhrBusy = true;
-
-                        getScript(xhr, path.replace(/\.js$/, '') + '.js', function (code, resolvedPath) {
-                            var item;
-
-                            callback(code, resolvedPath);
-
-                            item = xhrQueue.shift();
-
-                            if (item) {
-                                request(item.path, item.callback);
-                            } else {
-                                xhrBusy = false;
-                            }
-                        });
-                    }
-
-                    request(path, callback);
+                function getScript(path, callback) {
+                    xhr.getScript(path.replace(/\.js$/, '') + '.js', callback);
                 }
 
                 function require(config, path, callback) {
+                    var baseURI;
+
                     if (typeof config === 'string') {
                         callback = path;
                         path = config;
@@ -135,19 +112,72 @@ var require;
                         return;
                     }
 
+                    baseURI = bmd.baseURI;
+
+                    if (config.baseURI) {
+                        baseURI = makeAbsolute(config.baseURI, baseURI);
+
+                        if (!/\/$/.test(baseURI)) {
+                            baseURI += '/';
+                        }
+                    }
+
+                    function getNodeModuleTree(callback) {
+                        var dependenciesByBaseURI = {},
+                            tree = {
+                                dependenciesByBaseURI: dependenciesByBaseURI
+                            };
+
+                        (function getModuleData(baseURI, callback) {
+                            baseURI = baseURI.replace(/\/$/, '');
+
+                            xhr.getFile(baseURI + '/package.json', function (json) {
+                                var dependenciesByName = {},
+                                    i = 0,
+                                    keys,
+                                    packageData = JSON.parse(json);
+
+                                dependenciesByBaseURI[baseURI] = {
+                                    baseURI: baseURI,
+                                    dependenciesByName: dependenciesByName,
+                                    packageData: packageData
+                                };
+
+                                keys = [];
+
+                                if (packageData.dependencies) {
+                                    [].push.apply(keys, Object.keys(packageData.dependencies));
+                                }
+
+                                (function next() {
+                                    var dependencyPath;
+
+                                    if (i === keys.length) {
+                                        callback(dependenciesByBaseURI[baseURI]);
+                                        return;
+                                    }
+
+                                    dependencyPath = baseURI + '/node_modules/' + keys[i];
+
+                                    getModuleData(dependencyPath, function (data) {
+                                        dependenciesByName[keys[i]] = data;
+                                        i++;
+                                        next();
+                                    });
+                                }());
+                            }, function () {
+                                throw new Error('Failed to download package.json');
+                            });
+                        }(baseURI, function () {
+                            callback(tree);
+                        }));
+                    }
+
                     function contextRequire(path, callback) {
-                        function resolvePath(path) {
-                            var previousPath;
+                        var mappedPathCache = {};
 
-                            path = path.replace(/\/\//g, '/');
-
-                            // Resolve parent-directory terms in path
-                            while (previousPath !== path) {
-                                previousPath = path;
-                                path = path.replace(/(\/|^)(?!\.\.)[^\/]*\/\.\.\//, '$1');
-                            }
-
-                            path = path.replace(/(?!^\/[^.])(^|\/)(\.?\/)+/g, '$1'); // Resolve same-directory terms
+                        function resolveModulePath(path) {
+                            path = resolvePath(path);
 
                             if (/\/\.?$/.test(path)) {
                                 path = path.replace(/\.$/, '') + 'index';
@@ -156,39 +186,92 @@ var require;
                             return path;
                         }
 
-                        function mapPath(path, directoryURI) {
-                            var matches,
+                        function mapPath(path, directoryURI, callback) {
+                            var cacheKey = directoryURI + '!' + path,
+                                matches,
                                 directoryPrefix,
                                 directoryPath,
                                 match;
 
+                            function finish(resultPath) {
+                                mappedPathCache[cacheKey] = resultPath;
+
+                                if (callback) {
+                                    callback(resultPath);
+                                }
+
+                                return resultPath;
+                            }
+
+                            if (hasOwn.call(mappedPathCache, cacheKey)) {
+                                return finish(mappedPathCache[cacheKey]);
+                            }
+
                             if (config.paths) {
                                 if (config.paths[path]) {
-                                    return mapPath(config.paths[path], bmd.baseURI);
+                                    return finish(mapPath(config.paths[path], baseURI));
                                 }
 
                                 match = path.match(/^([^\/]+)\/(.*)$/);
 
                                 if (match && config.paths[match[1]]) {
-                                    return mapPath(config.paths[match[1]] + '/' + match[2], bmd.baseURI);
+                                    return finish(mapPath(config.paths[match[1]] + '/' + match[2], baseURI));
                                 }
                             }
 
-                            if (directoryURI) {
-                                matches = directoryURI.match(/^([^:]+:\/\/[^\/]*)(.*)$/);
-                                directoryPrefix = matches[1];
-                                directoryPath = matches[2];
+                            function resolve() {
+                                if (directoryURI) {
+                                    matches = directoryURI.match(/^([^:]+:\/\/[^\/]*)(.*)$/);
 
-                                path = directoryPath + path;
+                                    if (matches) {
+                                        directoryPrefix = matches[1];
+                                        directoryPath = matches[2];
+
+                                        path = directoryPath + path;
+                                    }
+                                }
+
+                                path = resolveModulePath(path);
+
+                                if (directoryURI && matches) {
+                                    path = directoryPrefix + path;
+                                }
                             }
 
-                            path = resolvePath(path);
+                            if (callback && /(?!^\.{1,2}$)^[^\/]+$/.test(path)) {
+                                getNodeModuleTree(function (tree) {
+                                    (function walkAncestry(dependencyBaseURI) {
+                                        var dependencyData,
+                                            indexPath;
 
-                            if (directoryURI) {
-                                path = directoryPrefix + path;
+                                        dependencyBaseURI = dependencyBaseURI.replace(/\/$/, '');
+
+                                        if (hasOwn.call(tree.dependenciesByBaseURI, dependencyBaseURI)) {
+                                            if (hasOwn.call(tree.dependenciesByBaseURI[dependencyBaseURI].dependenciesByName, path)) {
+                                                dependencyData = tree.dependenciesByBaseURI[dependencyBaseURI].dependenciesByName[path];
+                                                indexPath = dependencyData.packageData.main || 'index';
+
+                                                finish(makeAbsolute(indexPath, dependencyData.baseURI + '/'));
+                                                return;
+                                            }
+                                        }
+
+                                        if (dependencyBaseURI !== baseURI) {
+                                            walkAncestry(makeAbsolute('../', dependencyBaseURI));
+                                            return;
+                                        }
+
+                                        resolve();
+                                        finish(path);
+                                    }(directoryURI));
+                                });
+
+                                return;
                             }
 
-                            return path;
+                            resolve();
+
+                            return finish(path);
                         }
 
                         if (!callback) {
@@ -207,101 +290,101 @@ var require;
                         }
 
                         function fetch(path, directoryPath, callback) {
-                            path = mapPath(path, directoryPath);
+                            mapPath(path, directoryPath, function (path) {
+                                getScript(path, function (text, resolvedPath) {
+                                    var dependencies = [],
+                                        i,
+                                        matches = [],
+                                        pending = 0;
 
-                            getQueuedScript(path, function (text, resolvedPath) {
-                                var dependencies = [],
-                                    i,
-                                    matches = [],
-                                    pending = 0;
+                                    function loaded() {
+                                        function scopedRequire(relativePath) {
+                                            var mappedPath;
 
-                                function loaded() {
-                                    function scopedRequire(relativePath) {
-                                        var mappedPath;
-
-                                        if (hasOwn.call(modules, relativePath)) {
-                                            return modules[relativePath].load();
-                                        }
-
-                                        mappedPath = mapPath(relativePath, getDirectory(resolvedPath));
-
-                                        if (!hasOwn.call(modules, mappedPath)) {
-                                            throw new Error('Module not loaded: "' + mappedPath + '"');
-                                        }
-
-                                        return modules[mappedPath].load();
-                                    }
-
-                                    modules[path] = new Module(path, dependencies, text, scopedRequire);
-                                    callback(path);
-                                }
-
-                                function dependencyLoaded(dependencyPath) {
-                                    pending--;
-
-                                    dependencies.push(modules[dependencyPath]);
-                                }
-
-                                function loadDependency(dependencyPath, directoryPath) {
-                                    if (hasOwn.call(modules, dependencyPath)) {
-                                        dependencyLoaded(dependencyPath);
-                                    } else {
-                                        fetch(dependencyPath, directoryPath, function (dependencyPath) {
-                                            dependencyLoaded(dependencyPath);
-
-                                            if (pending === 0) {
-                                                loaded();
+                                            if (hasOwn.call(modules, relativePath)) {
+                                                return modules[relativePath].load();
                                             }
-                                        });
+
+                                            mappedPath = mapPath(relativePath, getDirectory(resolvedPath));
+
+                                            if (!hasOwn.call(modules, mappedPath)) {
+                                                throw new Error('Module not loaded: "' + mappedPath + '"');
+                                            }
+
+                                            return modules[mappedPath].load();
+                                        }
+
+                                        modules[path] = new Module(path, dependencies, text, scopedRequire);
+                                        callback(path);
                                     }
-                                }
 
-                                if (/\.js$/.test(path)) {
-                                    loaded();
-                                    return;
-                                }
+                                    function dependencyLoaded(dependencyPath) {
+                                        pending--;
 
-                                function doWalk(node, name) {
-                                    if (typeof node[name] === 'object') {
-                                        walkNode(node[name]);
-                                    } else if (
-                                        name === 'type' &&
-                                        node[name] === 'CallExpression' &&
-                                        node.callee.type === 'Identifier' &&
-                                        node.callee.name === 'require' &&
-                                        node.arguments.length === 1 &&
-                                        node.arguments[0].type === 'Literal'
-                                    ) {
-                                        matches.push(node.arguments[0].value);
+                                        dependencies.push(modules[dependencyPath]);
                                     }
-                                }
 
-                                function walkNode(node) {
-                                    var name;
+                                    function loadDependency(dependencyPath, directoryPath) {
+                                        if (hasOwn.call(modules, dependencyPath)) {
+                                            dependencyLoaded(dependencyPath);
+                                        } else {
+                                            fetch(dependencyPath, directoryPath, function (dependencyPath) {
+                                                dependencyLoaded(dependencyPath);
 
-                                    for (name in node) {
-                                        if (node.hasOwnProperty(name)) {
-                                            doWalk(node, name);
+                                                if (pending === 0) {
+                                                    loaded();
+                                                }
+                                            });
                                         }
                                     }
-                                }
 
-                                walkNode(esprima.parse(text));
+                                    if (/\.js$/.test(path)) {
+                                        loaded();
+                                        return;
+                                    }
 
-                                if (matches.length === 0) {
-                                    loaded();
-                                    return;
-                                }
+                                    function doWalk(node, name) {
+                                        if (typeof node[name] === 'object') {
+                                            walkNode(node[name]);
+                                        } else if (
+                                            name === 'type' &&
+                                            node[name] === 'CallExpression' &&
+                                            node.callee.type === 'Identifier' &&
+                                            node.callee.name === 'require' &&
+                                            node.arguments.length === 1 &&
+                                            node.arguments[0].type === 'Literal'
+                                        ) {
+                                            matches.push(node.arguments[0].value);
+                                        }
+                                    }
 
-                                for (i = 0; i < matches.length; i++) {
-                                    pending++;
+                                    function walkNode(node) {
+                                        var name;
 
-                                    loadDependency(matches[i], getDirectory(resolvedPath));
-                                }
+                                        for (name in node) {
+                                            if (node.hasOwnProperty(name)) {
+                                                doWalk(node, name);
+                                            }
+                                        }
+                                    }
+
+                                    walkNode(esprima.parse(text));
+
+                                    if (matches.length === 0) {
+                                        loaded();
+                                        return;
+                                    }
+
+                                    for (i = 0; i < matches.length; i++) {
+                                        pending++;
+
+                                        loadDependency(matches[i], getDirectory(resolvedPath));
+                                    }
+                                });
                             });
                         }
 
-                        fetch(path, bmd.baseURI, function (path) {
+                        fetch(path, baseURI, function (path) {
                             callback(modules[path].load());
                         });
                     }
@@ -313,29 +396,78 @@ var require;
             };
 
             return BMD;
+        }()),
+        QueuedXHR = (function () {
+            function QueuedXHR(nativeXHR) {
+                this.nativeXHR = nativeXHR;
+                this.busy = false;
+                this.queue = [];
+            }
+
+            QueuedXHR.prototype = {
+                getFile: function (uri, successCallback, failureCallback) {
+                    var xhr = this,
+                        nativeXHR = xhr.nativeXHR;
+
+                    function done() {
+                        var item = xhr.queue.shift();
+
+                        xhr.busy = false;
+
+                        if (item) {
+                            xhr.getFile(item.uri, item.successCallback, item.failureCallback);
+                        }
+                    }
+
+                    if (xhr.busy) {
+                        xhr.queue.push({uri: uri, successCallback: successCallback, failureCallback: failureCallback});
+                        return;
+                    }
+
+                    xhr.busy = true;
+
+                    nativeXHR.open('GET', uri, true);
+                    nativeXHR.onload = function () {
+                        if (nativeXHR.status === 200 || nativeXHR.status === 0) {
+                            successCallback(nativeXHR.responseText, uri);
+                            done();
+                            return;
+                        }
+
+                        failureCallback();
+                        done();
+                    };
+                    nativeXHR.onerror = function () {
+                        failureCallback();
+                        done();
+                    };
+                    nativeXHR.send(null);
+                },
+
+                getScript: function (uri, callback, originalURI) {
+                    var xhr = this;
+
+                    xhr.getFile(uri, function (code) {
+                        callback(code + '\n//# sourceURL=' + uri, uri);
+                    }, function () {
+                        function tryIndex() {
+                            setTimeout(function () {
+                                xhr.getScript(uri.replace(/\.js$/, '') + '/index.js', callback, uri);
+                            });
+                        }
+
+                        if (!originalURI) {
+                            tryIndex();
+                        }
+                    });
+                }
+            };
+
+            return QueuedXHR;
         }());
 
-    function getScript(xhr, uri, callback, originalURI) {
-        function tryIndex() {
-            setTimeout(function () {
-                getScript(xhr, uri.replace(/\.js$/, '') + '/index.js', callback, uri);
-            });
-        }
-
-        xhr.open('GET', uri, true);
-        xhr.onload = function () {
-            callback(xhr.responseText + '\n//# sourceURL=' + uri, uri);
-        };
-        xhr.onerror = function () {
-            if (!originalURI) {
-                tryIndex();
-            }
-        };
-        xhr.send(null);
-    }
-
     function loadEsprima() {
-        getScript(new XMLHttpRequest(), scriptDir + 'vendor/esprima.js', function (code) {
+        new QueuedXHR(new XMLHttpRequest()).getScript(scriptDir + 'vendor/esprima.js', function (code) {
             var i,
                 requireArgs;
 
@@ -374,6 +506,44 @@ var require;
 
         if (!/\/$/.test(path)) {
             path += '/';
+        }
+
+        return path;
+    }
+
+    function resolvePath(path) {
+        var previousPath;
+
+        path = path.replace(/\/\//g, '/');
+
+        // Resolve parent-directory terms in path
+        while (previousPath !== path) {
+            previousPath = path;
+            path = path.replace(/(\/|^)(?!\.\.)[^\/]*\/\.\.\//, '$1');
+        }
+
+        path = path.replace(/(?!^\/[^.])(^|\/)(\.?\/)+/g, '$1'); // Resolve same-directory terms
+
+        return path;
+    }
+
+    function makeAbsolute(path, directoryURI) {
+        var matches,
+            directoryPrefix,
+            directoryPath;
+
+        if (directoryURI) {
+            matches = directoryURI.match(/^([^:]+:\/\/[^\/]*)(.*)$/);
+            directoryPrefix = matches[1];
+            directoryPath = matches[2];
+
+            path = directoryPath + path;
+        }
+
+        path = resolvePath(path);
+
+        if (directoryURI) {
+            path = directoryPrefix + path;
         }
 
         return path;

@@ -47,7 +47,7 @@ describe('require() with no dependencies', function () {
         beforeEach(function (done) {
             responseTexts['http://my.app/path/my-module.js'] = '';
 
-            bmdRequire('my-module', function (moduleExports) {
+            bmdRequire('./my-module', function (moduleExports) {
                 lastModuleExports = moduleExports;
 
                 done();
@@ -78,7 +78,7 @@ describe('require() with no dependencies', function () {
                 beforeEach(function (done) {
                     responseTexts['http://my.app/path/my-module.js'] = scenario.script;
 
-                    bmdRequire('my-module', function (moduleExports) {
+                    bmdRequire('./my-module', function (moduleExports) {
                         lastModuleExports = moduleExports;
 
                         done();
