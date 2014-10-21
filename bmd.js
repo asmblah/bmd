@@ -240,6 +240,8 @@ var require;
 
                             if (callback && /(?!^\.{1,2}$)^[^\/]+$/.test(path)) {
                                 getNodeModuleTree(function (tree) {
+                                    var trimmedBaseURI = baseURI.replace(/\/$/, '');
+
                                     (function walkAncestry(dependencyBaseURI) {
                                         var dependencyData,
                                             indexPath;
@@ -256,8 +258,8 @@ var require;
                                             }
                                         }
 
-                                        if (dependencyBaseURI !== baseURI) {
-                                            walkAncestry(makeAbsolute('../', dependencyBaseURI));
+                                        if (dependencyBaseURI !== trimmedBaseURI) {
+                                            walkAncestry(makeAbsolute('../', dependencyBaseURI + '/'));
                                             return;
                                         }
 

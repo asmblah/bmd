@@ -99,7 +99,7 @@ describe('Node.js compatibility', function () {
                 }
             }
         },
-        'when a module refers to a dependency\'s index module by name': {
+        'when a module refers to an immediate dependency\'s index module by name': {
             modules: {
                 '/path/package.json': JSON.stringify({
                     'main': 'entry',
@@ -117,6 +117,39 @@ describe('Node.js compatibility', function () {
             expectedExports: {
                 myExports: {
                     cool: 'Yeah!'
+                }
+            }
+        },
+        'when a module refers to the parent dependency\'s index module by name': {
+            modules: {
+                '/path/package.json': JSON.stringify({
+                    'main': 'entry',
+                    'dependencies': {
+                        'parent-lib': '0.1.x'
+                    }
+                }),
+
+                '/path/node_modules/parent-lib/package.json': JSON.stringify({
+                    'main': 'parent-index'
+                }),
+
+                '/path/node_modules/parent-lib/node_modules/child-lib/package.json': JSON.stringify({
+                    'main': 'child-index',
+                    'dependencies': {
+                        'child-lib': '0.1.x'
+                    }
+                }),
+
+                '/path/node_modules/parent-lib/parent-index.js': 'exports.myValue = 21;',
+                '/path/node_modules/parent-lib/node_modules/child-lib/child-index.js': 'exports.myResult = require("parent-lib");',
+                '/path/entry.js': 'exports.myExports = require("./node_modules/parent-lib/node_modules/child-lib/child-index");'
+            },
+            entry: './entry',
+            expectedExports: {
+                myExports: {
+                    myResult: {
+                        myValue: 21
+                    }
                 }
             }
         }
