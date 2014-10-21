@@ -17,10 +17,12 @@ describe('Node.js compatibility', function () {
     var bmd,
         bmdRequire,
         entryModuleExports,
+        errorResponses,
         responseTexts;
 
     beforeEach(function () {
         responseTexts = {};
+        errorResponses = {};
 
         function FakeXMLHttpRequest() {}
 
@@ -31,14 +33,20 @@ describe('Node.js compatibility', function () {
                 this.async = async;
             },
             send: function () {
-                if (!{}.hasOwnProperty.call(responseTexts, this.uri)) {
+                if (!{}.hasOwnProperty.call(responseTexts, this.uri) && !{}.hasOwnProperty.call(errorResponses, this.uri)) {
                     throw new Error('Stub dependency "' + this.uri + '" not defined, only ' + Object.keys(responseTexts));
                 }
 
                 this.readyState = 4;
                 this.status = 0;
-                this.responseText = responseTexts[this.uri];
-                this.onreadystatechange();
+
+                if ({}.hasOwnProperty.call(responseTexts, this.uri)) {
+                    this.responseText = responseTexts[this.uri];
+                    this.onload();
+                } else {
+                    this.responseText = errorResponses[this.uri];
+                    this.onerror();
+                }
             }
         };
 
@@ -72,12 +80,34 @@ describe('Node.js compatibility', function () {
                     myResult: 21
                 }
             }
+        },
+        'when an implicitly-referenced index.js refers to a file in its own directory': {
+            modules: {
+                '/path/js/World.js': 'exports.World = 42;',
+                '/path/js/index.js': 'exports.myClasses = require("./World");',
+                '/path/entry.js': 'exports.myExports = require("./js");'
+            },
+            errorResponses: {
+                '/path/js.js': ''
+            },
+            entry: 'entry',
+            expectedExports: {
+                myExports: {
+                    myClasses: {
+                        World: 42
+                    }
+                }
+            }
         }
     }, function (scenario, description) {
         describe(description, function () {
             beforeEach(function (done) {
                 _.each(scenario.modules, function (code, name) {
                     responseTexts['http://my.app' + name] = code;
+                });
+
+                _.each(scenario.errorResponses, function (code, name) {
+                    errorResponses['http://my.app' + name] = code;
                 });
 
                 bmdRequire(scenario.config || {}, scenario.entry, function (moduleExports) {

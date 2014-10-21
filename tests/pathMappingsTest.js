@@ -38,7 +38,7 @@ describe('Path mappings', function () {
                 this.readyState = 4;
                 this.status = 0;
                 this.responseText = responseTexts[this.uri];
-                this.onreadystatechange();
+                this.onload();
             }
         };
 

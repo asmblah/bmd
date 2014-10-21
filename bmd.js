@@ -6,7 +6,7 @@
  * https://github.com/asmblah/bmd/raw/master/MIT-LICENSE.txt
  */
 
-/*global document, location, module, XMLHttpRequest */
+/*global document, location, module, setTimeout, XMLHttpRequest */
 var require;
 
 (function () {
@@ -105,10 +105,10 @@ var require;
                     function request(path, callback) {
                         xhrBusy = true;
 
-                        getScript(xhr, path.replace(/\.js$/, '') + '.js', function (code) {
+                        getScript(xhr, path.replace(/\.js$/, '') + '.js', function (code, resolvedPath) {
                             var item;
 
-                            callback(code, path);
+                            callback(code, resolvedPath);
 
                             item = xhrQueue.shift();
 
@@ -209,7 +209,7 @@ var require;
                         function fetch(path, directoryPath, callback) {
                             path = mapPath(path, directoryPath);
 
-                            getQueuedScript(path, function (text) {
+                            getQueuedScript(path, function (text, resolvedPath) {
                                 var dependencies = [],
                                     i,
                                     matches = [],
@@ -223,7 +223,7 @@ var require;
                                             return modules[relativePath].load();
                                         }
 
-                                        mappedPath = mapPath(relativePath, getDirectory(path));
+                                        mappedPath = mapPath(relativePath, getDirectory(resolvedPath));
 
                                         if (!hasOwn.call(modules, mappedPath)) {
                                             throw new Error('Module not loaded: "' + mappedPath + '"');
@@ -296,7 +296,7 @@ var require;
                                 for (i = 0; i < matches.length; i++) {
                                     pending++;
 
-                                    loadDependency(matches[i], getDirectory(path));
+                                    loadDependency(matches[i], getDirectory(resolvedPath));
                                 }
                             });
                         }
@@ -315,13 +315,20 @@ var require;
             return BMD;
         }());
 
-    function getScript(xhr, uri, callback) {
+    function getScript(xhr, uri, callback, originalURI) {
+        function tryIndex() {
+            setTimeout(function () {
+                getScript(xhr, uri.replace(/\.js$/, '') + '/index.js', callback, uri);
+            });
+        }
+
         xhr.open('GET', uri, true);
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState === 4) {
-                if (xhr.status === 200 || xhr.status === 0) {
-                    callback(xhr.responseText + '\n//# sourceURL=' + uri, uri);
-                }
+        xhr.onload = function () {
+            callback(xhr.responseText + '\n//# sourceURL=' + uri, uri);
+        };
+        xhr.onerror = function () {
+            if (!originalURI) {
+                tryIndex();
             }
         };
         xhr.send(null);
