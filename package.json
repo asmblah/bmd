@@ -1,6 +1,6 @@
 {
     "name": "bmd",
-    "version": "0.1.4",
+    "version": "0.1.5",
     "description": "BMD - Basic Module Definition",
     "devDependencies": {
         "mocha": "1.9.x",
